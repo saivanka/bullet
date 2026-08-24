@@ -23,13 +23,4 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Deploy to server
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          echo "$SSH_PRIVATE_KEY" > private_key.pem
-          chmod 600 private_key.pem
-          scp -i private_key.pem -r ./build/* $SERVER_USER@$SERVER_HOST:/path/to/deploy/
-          rm private_key.pem
+  
