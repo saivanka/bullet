@@ -1,21 +1,33 @@
-FROM node:24-alpine AS builder
+# Build stage
+FROM node:20-alpine AS builder
 
-WORKDIR /src
+WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
 
+# Install dependencies
 RUN npm install
 
+# Copy source code
 COPY . .
 
+# Build Vite project (creates dist/)
 RUN npm run build
 
-FROM nginx:alpine
+# Runtime stage
+FROM node:20-alpine
 
-COPY --from=builder /src/dist /usr/share/nginx/html
+WORKDIR /app
 
-EXPOSE 80
+# Install simple HTTP server
+RUN npm install -g http-server
 
+# Copy built files from builder
+COPY --from=builder /app/dist ./dist
 
-CMD ["nginx", "-g", "daemon off;"]
+# Expose port
+EXPOSE 3000
 
+# Start server
+CMD ["http-server", "dist", "-p", "3000"]
