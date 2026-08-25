@@ -123,3 +123,5 @@ jobs:
           ssh -i ~/.ssh/myinstance.pem $EC2_USER@$EC2_HOST \
               'cd ~/bullet && bash deploy.sh'
           rm ~/.ssh/myinstance.pem
+          
+  # What this does:
