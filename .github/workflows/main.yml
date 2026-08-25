@@ -112,11 +112,8 @@ jobs:
       - name: Deploy to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
-          # Replace SERVER_IP with EC2_HOST
           EC2_USER: ubuntu
-          # Ubuntu is the default user
           EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
-          # Use SSH key instead of easingthemes
           
         run: |
           mkdir -p ~/.ssh
@@ -126,9 +123,3 @@ jobs:
           ssh -i ~/.ssh/ec2-key.pem $EC2_USER@$EC2_HOST \
               'cd ~/bullet && bash deploy.sh'
           rm ~/.ssh/ec2-key.pem
-          
-      # What this does:
-      # - SSHes into EC2
-      # - Runs deploy.sh (pulls new image, starts container)
-      # - Replaces copying dist files with running container
-      #-deploy
