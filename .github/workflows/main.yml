@@ -1,33 +1,133 @@
-name: Initalize Deployment
+name: Build and Deploy to ECR & EC2
 
 on:
   push:
     branches:
       - main
 
-jobs: 
-  deploy:
+jobs:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    
     steps:
+      # ========================================
+      # STEP 1: Checkout code (same as before)
+      # ========================================
       - name: Checkout code
-        uses: actions/checkout@v2
-
+        uses: actions/checkout@v4
+        # v4 is newer than v2
+        
+      # ========================================
+      # STEP 2: Setup Node.js (UPDATED)
+      # ========================================
       - name: Set up Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
+        # v4 is newer than v2
         with:
-          node-version: '14'
-
+          node-version: '20'
+          # 20 is current LTS (14 is old!)
+          cache: 'npm'
+          # Caches dependencies for faster builds
+          
+      # ========================================
+      # STEP 3: Configure AWS Credentials (NEW)
+      # ========================================
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      # What this does:
+      # - Gives GitHub machine permission to access ECR
+      # - Uses AWS keys from your secrets
+          
+      # ========================================
+      # STEP 4: Login to ECR (NEW)
+      # ========================================
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        
+      # What this does:
+      # - Authenticates Docker with ECR
+      # - Gets registry URL for later use
+      # - id: login-ecr allows other steps to reference output
+      
+      # ========================================
+      # STEP 5: Install dependencies (same)
+      # ========================================
       - name: Install dependencies
         run: npm install
-
+        
+      # ========================================
+      # STEP 6: Build project (same)
+      # ========================================
       - name: Build project
         run: npm run build
-
-      - name: Deploy to server
-        uses: easingthemes/ssh-deploy@v2.1.5
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          remote-user: ${{ secrets.REMOTE_USER }}
-          server-ip: ${{ secrets.SERVER_IP }}
-          remote-path: ${{ secrets.REMOTE_PATH }}
-          local-path: ./dist
+        
+      # Creates ./dist folder (Vite output)
+        
+      # ========================================
+      # STEP 7: Build Docker Image (NEW)
+      # ========================================
+      - name: Build Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: bullet
+          # Change to your project name
+          IMAGE_TAG: latest
+          
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                     $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+                     
+      # What this does:
+      # - Builds Docker image (packages your app)
+      # - Tags with "latest" and commit hash
+      
+      # ========================================
+      # STEP 8: Push to ECR (NEW)
+      # ========================================
+      - name: Push to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: bullet
+          IMAGE_TAG: latest
+          
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+          
+      # What this does:
+      # - Uploads Docker image to ECR (AWS storage)
+      # - Replaces old "Deploy to server" SSH step
+      # - EC2 can now pull this image
+      
+      # ========================================
+      # STEP 9: Deploy to EC2 (NEW)
+      # ========================================
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          # Replace SERVER_IP with EC2_HOST
+          EC2_USER: ubuntu
+          # Ubuntu is the default user
+          EC2_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+          # Use SSH key instead of easingthemes
+          
+        run: |
+          mkdir -p ~/.ssh
+          echo "$EC2_KEY" > ~/.ssh/ec2-key.pem
+          chmod 600 ~/.ssh/ec2-key.pem
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/ec2-key.pem $EC2_USER@$EC2_HOST \
+              'cd ~/bullet && bash deploy.sh'
+          rm ~/.ssh/ec2-key.pem
+          
+      # What this does:
+      # - SSHes into EC2
+      # - Runs deploy.sh (pulls new image, starts container)
+      # - Replaces copying dist files with running container
