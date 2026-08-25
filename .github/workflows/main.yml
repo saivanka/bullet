@@ -117,9 +117,9 @@ jobs:
           
         run: |
           mkdir -p ~/.ssh
-          echo "$EC2_KEY" > ~/.ssh/ec2-key.pem
-          chmod 600 ~/.ssh/ec2-key.pem
+          echo "$EC2_KEY" > ~/.ssh/myinstance.pem
+          chmod 400 ~/.ssh/myinstance.pem
           ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/ec2-key.pem $EC2_USER@$EC2_HOST \
+          ssh -i ~/.ssh/myinstance.pem $EC2_USER@$EC2_HOST \
               'cd ~/bullet && bash deploy.sh'
-          rm ~/.ssh/ec2-key.pem
+          rm ~/.ssh/myinstance.pem
